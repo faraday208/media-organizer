@@ -82,13 +82,14 @@ def scan_directory(directory):
     return files_by_ext
 
 
-def generate_rename_plan(files_by_ext, prefix):
+def generate_rename_plan(files_by_ext, prefix, include_extension=False):
     """
     Generate rename plan: sort by creation time and assign sequential numbers
 
     Args:
         files_by_ext: dict of extension -> list of (filepath, creation_time)
         prefix: prefix for new filenames
+        include_extension: if True, include extension name in filename
 
     Returns:
         list of (old_path, new_path) tuples
@@ -103,7 +104,14 @@ def generate_rename_plan(files_by_ext, prefix):
         # Assign sequential numbers
         for idx, (old_path, creation_time) in enumerate(sorted_files, 1):
             directory = os.path.dirname(old_path)
-            new_filename = f"{prefix}_{idx}{ext}"
+
+            # Generate filename based on include_extension flag
+            if include_extension:
+                ext_name = ext.lstrip('.')  # Remove leading dot: .jpg -> jpg
+                new_filename = f"{prefix}_{ext_name}_{idx}{ext}"
+            else:
+                new_filename = f"{prefix}_{idx}{ext}"
+
             new_path = os.path.join(directory, new_filename)
 
             rename_plan.append({
@@ -228,20 +236,24 @@ def save_report(rename_plan, output_file="rename_report.json"):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 rename_files.py <directory> [--prefix <name>] [--dry-run]")
+        print("Usage: python3 rename_files.py <directory> [OPTIONS]")
         print("\nArguments:")
-        print("  directory    : Directory containing media files to rename")
-        print("  --prefix     : Prefix for renamed files (default: directory name)")
-        print("  --dry-run    : Simulate rename without actually changing files")
-        print("\nExample:")
+        print("  directory           : Directory containing media files to rename")
+        print("\nOptions:")
+        print("  --prefix <name>     : Prefix for renamed files (default: directory name)")
+        print("  --include-extension : Include extension in filename (e.g., prefix_jpg_1.jpg)")
+        print("  --dry-run           : Simulate rename without actually changing files")
+        print("\nExamples:")
         print('  python3 rename_files.py "/path/to/photos" --dry-run')
         print('  python3 rename_files.py "/path/to/photos" --prefix "Vacation2024"')
+        print('  python3 rename_files.py "/path/to/photos" --include-extension')
         sys.exit(1)
 
     # Parse arguments
     target_dir = sys.argv[1]
     prefix = None
     dry_run = False
+    include_extension = False
 
     i = 2
     while i < len(sys.argv):
@@ -250,6 +262,9 @@ def main():
             i += 2
         elif sys.argv[i] == '--dry-run':
             dry_run = True
+            i += 1
+        elif sys.argv[i] == '--include-extension':
+            include_extension = True
             i += 1
         else:
             i += 1
@@ -273,6 +288,7 @@ def main():
     print("=" * 80)
     print(f"Directory: {target_dir}")
     print(f"Prefix: {prefix}")
+    print(f"Include extension: {'Yes' if include_extension else 'No'}")
     print(f"Mode: {'DRY RUN' if dry_run else 'RENAME'}")
     print()
 
@@ -284,7 +300,7 @@ def main():
         sys.exit(0)
 
     # Generate rename plan
-    rename_plan = generate_rename_plan(files_by_ext, prefix)
+    rename_plan = generate_rename_plan(files_by_ext, prefix, include_extension)
 
     # Check for conflicts
     conflicts = check_conflicts(rename_plan)
