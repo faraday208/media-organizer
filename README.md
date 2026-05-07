@@ -62,7 +62,7 @@ This mode includes the extension in the filename, making it impossible to have n
 ## Features
 
 ✅ **Sequential Numbering by Type**: Each file format gets its own number sequence
-✅ **Creation Time Sorting**: Files ordered chronologically within each type
+✅ **EXIF-Aware Sorting**: Images sorted by EXIF `DateTimeOriginal` when available; falls back to `mtime` (which survives `cp -p` and `rsync`, unlike `ctime`)
 ✅ **Multi-Format Support**: Images, videos, and audio files
 ✅ **Dry-Run Mode**: Preview changes before applying
 ✅ **Custom Prefix**: Use any prefix you want
@@ -84,10 +84,14 @@ This mode includes the extension in the filename, making it impossible to have n
 
 ## Installation
 
-No dependencies required! Uses only Python standard library.
+No required dependencies — uses only the Python standard library.
 
 **Requirements:**
 - Python 3.6+
+
+**Optional (recommended for image collections):**
+- [Pillow](https://pypi.org/project/Pillow/) — `pip install Pillow`
+  Enables EXIF `DateTimeOriginal` reading so images get sorted by their actual capture time. Without Pillow, images fall back to filesystem `mtime`.
 
 ## Usage
 
@@ -210,9 +214,13 @@ python3 rename_files.py "/mnt/external/PhotoShoot" --prefix "ClientName"
    - Finds all media files (non-recursive)
    - Groups by file extension
 
-2. **Sort by Creation Time**
+2. **Sort by Best-Available Timestamp**
    - Each file type is sorted independently
-   - Uses file creation timestamp (st_ctime/st_birthtime)
+   - Priority order:
+     1. **EXIF `DateTimeOriginal`** (images, requires Pillow) — survives copying
+     2. **`st_birthtime`** (macOS/BSD only) — true filesystem creation time
+     3. **`st_mtime`** (modification time) — survives `cp -p` and `rsync`
+   - `st_ctime` is intentionally NOT used: on Linux it tracks metadata-change time and gets reset by `cp`, `mv`, `chmod`, etc.
 
 3. **Generate Rename Plan**
    - Assigns sequential numbers starting from 1
@@ -242,7 +250,8 @@ After renaming, a `rename_report.json` file is created in the target directory:
       "old_filename": "IMG_3847.jpg",
       "new_filename": "Vacation_1.jpg",
       "extension": ".jpg",
-      "creation_time": "2024-01-15T10:23:45",
+      "sort_time": "2024-01-15T10:23:45",
+      "time_source": "exif",
       "index": 1
     },
     ...
@@ -286,14 +295,15 @@ After renaming, a `rename_report.json` file is created in the target directory:
 - **Non-destructive**: Original files are renamed, not deleted
 - **Single directory**: Does not process subdirectories
 - **File extensions preserved**: `.jpg` stays `.jpg`, `.mp4` stays `.mp4`
-- **Creation time**: Sorts by file creation timestamp (may vary by OS)
+- **Sort time**: EXIF `DateTimeOriginal` for images (when Pillow installed), otherwise filesystem `mtime`. Console + JSON report show which source was used per file.
 - **No duplicates**: Each file type gets unique sequential numbers
 
 ## Limitations
 
 - Only processes files in the specified directory (not subdirectories)
 - Requires write permissions in target directory
-- File creation time behavior varies by operating system
+- Without Pillow installed, image sorting falls back to `mtime` (loses EXIF precision for copied/moved files)
+- Video and audio files always use `mtime` (no EXIF equivalent is read)
 - Does not modify EXIF data or file contents
 
 ## Troubleshooting
@@ -336,6 +346,12 @@ MIT License - Feel free to use and modify
 This is a simple utility tool. Feel free to fork and enhance!
 
 ## Version
+
+**v1.1.0** - EXIF-aware sorting
+- Reads EXIF `DateTimeOriginal` for image files when Pillow is installed
+- Falls back to `mtime` instead of unreliable `ctime` (which gets reset by `cp`/`mv`/`chmod`)
+- Reports per-file sort-time source in console output and JSON report
+- New optional dependency: Pillow (graceful fallback when missing)
 
 **v1.0.0** - Initial release
 - Basic rename functionality
