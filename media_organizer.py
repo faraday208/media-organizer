@@ -367,9 +367,13 @@ def execute_rename(rename_plan, dry_run=True, mode='rename'):
         print("Run without --dry-run to perform the actual rename.")
 
 
+REPORT_TOOL_NAME = 'media-organizer'
+
+
 def save_report(rename_plan, output_file="rename_report.json", mode='rename'):
     """Save rename plan to JSON file. `mode` is recorded so undo can reverse correctly."""
     report = {
+        'tool': REPORT_TOOL_NAME,
         'timestamp': datetime.now().isoformat(),
         'mode': mode,
         'total_files': len(rename_plan),
@@ -450,6 +454,15 @@ def undo_from_report(report_path, dry_run=False, cleanup_empty_dirs=False):
 
     with open(report_path, encoding='utf-8') as f:
         report = json.load(f)
+
+    # Tool kontratı: yanlış tool'un raporunu kabul etme. Eski raporlarda
+    # 'tool' field'ı yoktu (v0.5.0 öncesi) — uyar ve devam et (back-compat).
+    report_tool = report.get('tool')
+    if report_tool and report_tool != REPORT_TOOL_NAME:
+        print(f"Error: Report tool mismatch: expected {REPORT_TOOL_NAME!r}, got {report_tool!r}")
+        return 1
+    if not report_tool:
+        print(f"Warning: Report has no 'tool' field — assuming {REPORT_TOOL_NAME} (legacy report).")
 
     # v1.x raporlarında 'mode' yoktu — geriye uyumluluk için 'rename' varsay.
     mode = report.get('mode', 'rename')

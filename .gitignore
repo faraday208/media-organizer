@@ -23,8 +23,8 @@ wheels/
 .installed.cfg
 *.egg
 
-# Reports
-rename_report*.json
+# Reports (tool-conventions: *_report.json suffix)
+*_report.json
 
 # IDE
 .vscode/
