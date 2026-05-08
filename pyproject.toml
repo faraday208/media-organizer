@@ -1,12 +1,12 @@
 [project]
-name = "media-renamer"
-version = "0.3.0"
-description = "Batch rename media files with sequential numbering by type and creation time. CLI + Python library."
+name = "media-organizer"
+version = "0.4.0"
+description = "Organize media files for dataset prep: batch rename + relocate (copy/move to output dir) + undo, with sequential numbering by type and creation time."
 requires-python = ">=3.11"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [{ name = "faraday208" }]
-keywords = ["media", "rename", "batch", "dataset", "pipeline"]
+keywords = ["media", "organize", "rename", "batch", "dataset", "pipeline"]
 
 # Sıfır zorunlu bağımlılık — sadece Python stdlib.
 # Pillow opsiyonel (EXIF DateTimeOriginal okuma için).

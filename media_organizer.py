@@ -363,8 +363,8 @@ def undo_from_report(report_path, dry_run=False):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 media_renamer.py <directory> [OPTIONS]")
-        print("       python3 media_renamer.py --undo <report.json> [--dry-run]")
+        print("Usage: python3 media_organizer.py <directory> [OPTIONS]")
+        print("       python3 media_organizer.py --undo <report.json> [--dry-run]")
         print("\nArguments:")
         print("  directory           : Directory containing media files to rename")
         print("\nOptions:")
@@ -375,12 +375,12 @@ def main():
         print("  --undo <report>     : Reverse a previous run from its rename_report.json")
         print("  --dry-run           : Simulate without modifying any file")
         print("\nExamples:")
-        print('  python3 media_renamer.py "/path/to/photos" --dry-run')
-        print('  python3 media_renamer.py "/path/to/photos" --prefix "Vacation2024"')
-        print('  python3 media_renamer.py "/path/to/photos" --output-dir "/path/organized"')
-        print('  python3 media_renamer.py "/path/to/photos" --output-dir "/path/organized" --move')
-        print('  python3 media_renamer.py --undo /path/to/photos/rename_report.json --dry-run')
-        print('  python3 media_renamer.py --undo /path/to/photos/rename_report.json')
+        print('  python3 media_organizer.py "/path/to/photos" --dry-run')
+        print('  python3 media_organizer.py "/path/to/photos" --prefix "Vacation2024"')
+        print('  python3 media_organizer.py "/path/to/photos" --output-dir "/path/organized"')
+        print('  python3 media_organizer.py "/path/to/photos" --output-dir "/path/organized" --move')
+        print('  python3 media_organizer.py --undo /path/to/photos/rename_report.json --dry-run')
+        print('  python3 media_organizer.py --undo /path/to/photos/rename_report.json')
         sys.exit(1)
 
     # --undo modu: ilk arg --undo ise dizin değil rapor yolu kabul et
