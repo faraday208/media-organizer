@@ -254,10 +254,11 @@ def execute_rename(rename_plan, dry_run=True, mode='rename'):
         print("Run without --dry-run to perform the actual rename.")
 
 
-def save_report(rename_plan, output_file="rename_report.json"):
-    """Save rename plan to JSON file."""
+def save_report(rename_plan, output_file="rename_report.json", mode='rename'):
+    """Save rename plan to JSON file. `mode` is recorded so undo can reverse correctly."""
     report = {
         'timestamp': datetime.now().isoformat(),
+        'mode': mode,
         'total_files': len(rename_plan),
         'pillow_available': PIL_AVAILABLE,
         'renames': rename_plan
@@ -269,9 +270,101 @@ def save_report(rename_plan, output_file="rename_report.json"):
     print(f"\nRename plan saved to: {output_file}")
 
 
+def undo_from_report(report_path, dry_run=False):
+    """
+    Reverse the operation described in a rename_report.json.
+
+    Behavior depends on the report's recorded mode:
+      'rename' → os.rename(new_path, old_path)         (eski isme geri çevir)
+      'copy'   → os.remove(new_path)                   (kopyayı sil; kaynak duruyor)
+      'move'   → shutil.move(new_path, old_path)       (kaynağa geri taşı)
+
+    Skipped (with warning) when:
+      - new_path no longer exists
+      - old_path is occupied (would overwrite, not safe)
+    """
+    if not os.path.exists(report_path):
+        print(f"Error: Report not found: {report_path}")
+        return 1
+
+    with open(report_path, encoding='utf-8') as f:
+        report = json.load(f)
+
+    # v1.x raporlarında 'mode' yoktu — geriye uyumluluk için 'rename' varsay.
+    mode = report.get('mode', 'rename')
+    renames = report.get('renames', [])
+
+    print("=" * 80)
+    print("UNDO — reversing previous run")
+    print("=" * 80)
+    print(f"Report: {report_path}")
+    print(f"Original mode: {mode}")
+    print(f"Records: {len(renames)}")
+    if dry_run:
+        print("DRY RUN — no files will be modified")
+    print("=" * 80)
+    print()
+
+    success = skipped = failed = 0
+
+    for item in renames:
+        old_path = item['old_path']
+        new_path = item['new_path']
+        old_name = os.path.basename(old_path)
+        new_name = os.path.basename(new_path)
+
+        # Hedef (yeni dosya) hâlâ var mı?
+        if not os.path.exists(new_path):
+            print(f"  ⊘ {new_name}  (artık yok — atlandı)")
+            skipped += 1
+            continue
+
+        # Geri yazılacak yer (rename/move modlarında) zaten dolu mu?
+        if mode in ('rename', 'move') and os.path.exists(old_path):
+            print(f"  ⊘ {new_name} → {old_name}  (hedef dolu — atlandı, üzerine yazmıyoruz)")
+            skipped += 1
+            continue
+
+        if dry_run:
+            if mode == 'rename':
+                print(f"  ← {new_name} → {old_name}  (in-place reverse)")
+            elif mode == 'copy':
+                print(f"  ✗ {new_name}  (kopya silinecek; kaynak {old_name} zaten yerinde)")
+            elif mode == 'move':
+                print(f"  ← {new_name} → {old_name}  (move back)")
+            success += 1
+            continue
+
+        try:
+            if mode == 'rename':
+                os.rename(new_path, old_path)
+                print(f"  ✓ {new_name} → {old_name}")
+            elif mode == 'copy':
+                os.remove(new_path)
+                print(f"  ✓ {new_name} silindi (kaynak {old_name} zaten yerinde)")
+            elif mode == 'move':
+                shutil.move(new_path, old_path)
+                print(f"  ✓ {new_name} → {old_name}")
+            else:
+                print(f"  ✗ {new_name}  (bilinmeyen mod: {mode})")
+                failed += 1
+                continue
+            success += 1
+        except Exception as e:
+            print(f"  ✗ {new_name}  (Hata: {e})")
+            failed += 1
+
+    print()
+    print("=" * 80)
+    print(f"SUMMARY  Total: {len(renames)}  |  Restored: {success}  |  Skipped: {skipped}  |  Failed: {failed}")
+    print("=" * 80)
+    return 0 if failed == 0 else 2
+
+
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 rename_files.py <directory> [OPTIONS]")
+        print("Usage: python3 media_renamer.py <directory> [OPTIONS]")
+        print("       python3 media_renamer.py --undo <report.json> [--dry-run]")
         print("\nArguments:")
         print("  directory           : Directory containing media files to rename")
         print("\nOptions:")
@@ -279,13 +372,25 @@ def main():
         print("  --include-extension : Include extension in filename (e.g., prefix_jpg_1.jpg)")
         print("  --output-dir <path> : Write to this directory; sources stay untouched (copy mode)")
         print("  --move              : With --output-dir: move instead of copy (sources removed)")
+        print("  --undo <report>     : Reverse a previous run from its rename_report.json")
         print("  --dry-run           : Simulate without modifying any file")
         print("\nExamples:")
-        print('  python3 rename_files.py "/path/to/photos" --dry-run')
-        print('  python3 rename_files.py "/path/to/photos" --prefix "Vacation2024"')
-        print('  python3 rename_files.py "/path/to/photos" --output-dir "/path/organized"')
-        print('  python3 rename_files.py "/path/to/photos" --output-dir "/path/organized" --move')
+        print('  python3 media_renamer.py "/path/to/photos" --dry-run')
+        print('  python3 media_renamer.py "/path/to/photos" --prefix "Vacation2024"')
+        print('  python3 media_renamer.py "/path/to/photos" --output-dir "/path/organized"')
+        print('  python3 media_renamer.py "/path/to/photos" --output-dir "/path/organized" --move')
+        print('  python3 media_renamer.py --undo /path/to/photos/rename_report.json --dry-run')
+        print('  python3 media_renamer.py --undo /path/to/photos/rename_report.json')
         sys.exit(1)
+
+    # --undo modu: ilk arg --undo ise dizin değil rapor yolu kabul et
+    if sys.argv[1] == '--undo':
+        if len(sys.argv) < 3:
+            print("Error: --undo requires a path to rename_report.json")
+            sys.exit(1)
+        report_path = sys.argv[2]
+        dry_run = '--dry-run' in sys.argv[3:]
+        sys.exit(undo_from_report(report_path, dry_run=dry_run))
 
     target_dir = sys.argv[1]
     prefix = None
@@ -293,6 +398,7 @@ def main():
     include_extension = False
     output_dir = None
     move = False
+    undo_report = None
 
     i = 2
     while i < len(sys.argv):
@@ -302,6 +408,9 @@ def main():
             i += 2
         elif arg == '--output-dir' and i + 1 < len(sys.argv):
             output_dir = sys.argv[i + 1]
+            i += 2
+        elif arg == '--undo' and i + 1 < len(sys.argv):
+            undo_report = sys.argv[i + 1]
             i += 2
         elif arg == '--dry-run':
             dry_run = True
@@ -314,6 +423,11 @@ def main():
             i += 1
         else:
             i += 1
+
+    # --undo başka konumdan geldiyse (örn. 'rename_files.py /path --undo report.json'),
+    # report yoluna sahip — dizin argümanı yok sayılır.
+    if undo_report:
+        sys.exit(undo_from_report(undo_report, dry_run=dry_run))
 
     if prefix is None:
         prefix = os.path.basename(os.path.abspath(target_dir))
@@ -384,7 +498,7 @@ def main():
     # Rapor: output_dir varsa oraya, yoksa kaynağa.
     report_dir = output_dir if output_dir else target_dir
     report_file = os.path.join(report_dir, "rename_report.json")
-    save_report(rename_plan, report_file)
+    save_report(rename_plan, report_file, mode=mode)
 
     print("\nDone!")
 

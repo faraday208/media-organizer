@@ -65,10 +65,11 @@ This mode includes the extension in the filename, making it impossible to have n
 ✅ **EXIF-Aware Sorting**: Images sorted by EXIF `DateTimeOriginal` when available; falls back to `mtime` (which survives `cp -p` and `rsync`, unlike `ctime`)
 ✅ **Multi-Format Support**: Images, videos, and audio files
 ✅ **Three Operation Modes**: in-place rename, copy to output dir (sources preserved), or move to output dir
-✅ **Dry-Run Mode**: Preview changes before applying
+✅ **Undo Support**: Reverse any previous run from its `rename_report.json` (in-place / copy / move all supported)
+✅ **Dry-Run Mode**: Preview changes — including undo previews — before applying
 ✅ **Custom Prefix**: Use any prefix you want
 ✅ **Extension in Filename**: Optional mode to include extension in filename
-✅ **JSON Report**: Detailed log of all renames (written even in dry-run)
+✅ **JSON Report**: Detailed log of all renames (written even in dry-run; embedded `mode` enables exact undo)
 ✅ **Conflict Detection**: Warns about potential naming conflicts
 ✅ **Safe Operation**: Non-recursive (only processes target directory)
 
@@ -147,8 +148,15 @@ Optional:
                         Sources are removed, output dir is populated.
                         Useless without --output-dir (errors out).
 
+  --undo <report>       Reverse a previous run using its rename_report.json.
+                        Behavior auto-determined from the recorded mode:
+                          in-place → revert names (os.rename)
+                          copy     → delete copies (sources untouched)
+                          move     → move files back to source
+
   --dry-run             Preview mode - shows what would happen
                         without actually modifying any file
+                        (works with both forward and undo runs)
 ```
 
 ### Operation Modes
@@ -158,6 +166,21 @@ Optional:
 | _(none)_ | In-place rename (`os.rename`) | Same files, new names |
 | `--output-dir <path>` | Copy with new names (`shutil.copy2`) | Untouched — full backup |
 | `--output-dir <path> --move` | Move with new names (`shutil.move`) | Empty — files relocated |
+| `--undo <report>` | Auto-reverse from JSON report | Restored to pre-run state |
+
+### Undo
+
+Every run writes a `rename_report.json` with absolute `old_path` ↔ `new_path` mappings plus the `mode` used. To reverse a run, point `--undo` at that report:
+
+```bash
+# Önce ne geri alacağını gör
+python3 media_renamer.py --undo /path/photos/rename_report.json --dry-run
+
+# Sonra gerçeği
+python3 media_renamer.py --undo /path/photos/rename_report.json
+```
+
+**Güvenlik:** Undo, hedef dosya artık yoksa ya da eski yol başka bir dosyayla doluysa o kaydı **atlar** ve uyarı basar — hiçbir zaman üzerine yazma yapmaz.
 
 **Tip:** For destructive `--output-dir` modes, run `--dry-run` first; the JSON plan tells you exactly which target paths will be created before any file moves.
 
@@ -374,6 +397,16 @@ MIT License - Feel free to use and modify
 This is a simple utility tool. Feel free to fork and enhance!
 
 ## Version
+
+**v0.3.0** - Undo support
+- New `--undo <report.json>` flag: reverses a previous run from its JSON report.
+- Behavior auto-detected from the report's `mode` field:
+  - in-place → `os.rename` back to old names
+  - copy → delete copies in output dir (sources untouched)
+  - move → `shutil.move` files back to original locations
+- Skips records (with warning) when target file is missing or origin path is occupied.
+- Works with `--dry-run` for safe preview.
+- `rename_report.json` now records the `mode` used (backward-compat: missing field assumes 'rename').
 
 **v0.2.0** - Renamed `media-organizer` → `media-renamer`
 - Repo + module + package adı bugünkü işi yansıtıyor (sadece rename yapıyor, organize etmiyor).
