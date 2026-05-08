@@ -15,5 +15,16 @@ dependencies = []
 [project.optional-dependencies]
 exif = ["pillow>=10.0"]
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pillow>=10.0",  # EXIF testleri için gerekli
+]
+
 [tool.uv]
 package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q --tb=short"
