@@ -1,6 +1,6 @@
-# Media Organizer
+# Media Renamer
 
-A Python CLI tool that automatically renames media files with sequential numbering, organized by file type and sorted by creation time.
+A Python CLI + library that batch-renames media files with sequential numbering, grouped by file type and sorted by creation time.
 
 ## What Does This Tool Do?
 
@@ -27,7 +27,7 @@ MyVacation/
 
 **After running:**
 ```bash
-python3 rename_files.py /path/to/MyVacation --prefix "Vacation"
+python3 media_renamer.py /path/to/MyVacation --prefix "Vacation"
 ```
 
 **Result:**
@@ -100,31 +100,31 @@ No required dependencies — uses only the Python standard library.
 
 ```bash
 # Dry run (preview only - recommended first step)
-python3 rename_files.py /path/to/folder --dry-run
+python3 media_renamer.py /path/to/folder --dry-run
 
 # In-place rename (uses folder name as prefix)
-python3 rename_files.py /path/to/folder
+python3 media_renamer.py /path/to/folder
 
 # Custom prefix
-python3 rename_files.py /path/to/folder --prefix "MyPhotos"
+python3 media_renamer.py /path/to/folder --prefix "MyPhotos"
 
 # Include extension in filename
-python3 rename_files.py /path/to/folder --include-extension
+python3 media_renamer.py /path/to/folder --include-extension
 
 # Copy to a separate output directory (sources untouched — safest)
-python3 rename_files.py /path/to/folder --output-dir /path/organized
+python3 media_renamer.py /path/to/folder --output-dir /path/organized
 
 # Move to output directory (sources removed)
-python3 rename_files.py /path/to/folder --output-dir /path/organized --move
+python3 media_renamer.py /path/to/folder --output-dir /path/organized --move
 
 # Combine options
-python3 rename_files.py /path/to/folder --prefix "Summer2024" --include-extension --dry-run
+python3 media_renamer.py /path/to/folder --prefix "Summer2024" --include-extension --dry-run
 ```
 
 ### Command Line Options
 
 ```
-python3 rename_files.py <directory> [OPTIONS]
+python3 media_renamer.py <directory> [OPTIONS]
 
 Required:
   <directory>           Path to folder containing media files
@@ -167,7 +167,7 @@ Optional:
 
 ```bash
 # See what will happen without making changes
-python3 rename_files.py "/home/user/Photos/Birthday2024" --dry-run
+python3 media_renamer.py "/home/user/Photos/Birthday2024" --dry-run
 ```
 
 Output:
@@ -204,7 +204,7 @@ File types: .jpg, .mp4, .png
 ### Example 2: Rename with Custom Prefix
 
 ```bash
-python3 rename_files.py "/media/Photos" --prefix "Summer2024"
+python3 media_renamer.py "/media/Photos" --prefix "Summer2024"
 ```
 
 All media files in `/media/Photos` will be renamed as:
@@ -215,7 +215,7 @@ All media files in `/media/Photos` will be renamed as:
 
 ```bash
 # When you have mixed file types (jpg, jpeg, png, etc.)
-python3 rename_files.py "/path/to/folder" --prefix "MyPhotos" --include-extension
+python3 media_renamer.py "/path/to/folder" --prefix "MyPhotos" --include-extension
 
 # Result:
 # MyPhotos_jpg_1.jpg, MyPhotos_jpg_2.jpg
@@ -228,10 +228,10 @@ python3 rename_files.py "/path/to/folder" --prefix "MyPhotos" --include-extensio
 
 ```bash
 # You have 1200+ photos from a photo shoot
-python3 rename_files.py "/mnt/external/PhotoShoot" --prefix "ClientName" --dry-run
+python3 media_renamer.py "/mnt/external/PhotoShoot" --prefix "ClientName" --dry-run
 
 # Review the output, then execute
-python3 rename_files.py "/mnt/external/PhotoShoot" --prefix "ClientName"
+python3 media_renamer.py "/mnt/external/PhotoShoot" --prefix "ClientName"
 ```
 
 ## How It Works
@@ -351,8 +351,8 @@ A `rename_report.json` file is written to the target directory after every run �
 ## Project Structure
 
 ```
-media-organizer/
-├── rename_files.py    # Main CLI tool
+media-renamer/
+├── media_renamer.py   # CLI + library (single file)
 ├── pyproject.toml     # Dependency tanımı (uv / pip)
 ├── LICENSE
 ├── .gitignore
@@ -361,10 +361,8 @@ media-organizer/
 
 ## Future Features (Planned)
 
-- Interactive app mode
-- Subdirectory support with grouping options
+- Subdirectory support with grouping options (then this tool grows beyond rename and may move under a separate repo, e.g. `media-organizer`)
 - Multiple sorting methods (size, name, modified date)
-- Undo functionality
 - Batch processing of multiple directories
 
 ## License
@@ -376,6 +374,14 @@ MIT License - Feel free to use and modify
 This is a simple utility tool. Feel free to fork and enhance!
 
 ## Version
+
+**v0.2.0** - Renamed `media-organizer` → `media-renamer`
+- Repo + module + package adı bugünkü işi yansıtıyor (sadece rename yapıyor, organize etmiyor).
+- Module: `rename_files.py` → `media_renamer.py`. In-process import: `from media_renamer import ...`
+- Future Features'tan "Undo" çıkarıldı (sıradaki sürümde implement edilecek).
+- Davranışsal değişiklik yok — argümanlar ve çıktılar aynı.
+
+**v0.1.x history (önceki "media-organizer" döneminde):**
 
 **v1.2.0** - Output directory + copy/move modes
 - New `--output-dir` flag: write renamed files to a separate directory (copy mode); sources untouched.
