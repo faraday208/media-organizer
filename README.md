@@ -65,13 +65,14 @@ This mode includes the extension in the filename, making it impossible to have n
 ✅ **EXIF-Aware Sorting**: Images sorted by EXIF `DateTimeOriginal` when available; falls back to `mtime` (which survives `cp -p` and `rsync`, unlike `ctime`)
 ✅ **Multi-Format Support**: Images, videos, and audio files
 ✅ **Three Operation Modes**: in-place rename, copy to output dir (sources preserved), or move to output dir
-✅ **Undo Support**: Reverse any previous run from its `rename_report.json` (in-place / copy / move all supported)
+✅ **Recursive Scan (opt-in)**: `--recursive flat` (whole tree → one sequence) or `--recursive tree` (each subdir keeps its own sequence; structure preserved)
+✅ **Undo Support**: Reverse any previous run from its `rename_report.json` (in-place / copy / move all supported); optional `--cleanup-empty-dirs` removes mirror folders left empty after undo
 ✅ **Dry-Run Mode**: Preview changes — including undo previews — before applying
-✅ **Custom Prefix**: Use any prefix you want
+✅ **Custom Prefix**: Use any prefix you want (in tree mode, each subfolder uses its own name by default)
 ✅ **Extension in Filename**: Optional mode to include extension in filename
 ✅ **JSON Report**: Detailed log of all renames (written even in dry-run; embedded `mode` enables exact undo)
 ✅ **Conflict Detection**: Warns about potential naming conflicts
-✅ **Safe Operation**: Non-recursive (only processes target directory)
+✅ **Safe Defaults**: Non-recursive by default — opt-in to recurse
 
 ## Supported File Types
 
@@ -118,6 +119,12 @@ python3 media_organizer.py /path/to/folder --output-dir /path/organized
 # Move to output directory (sources removed)
 python3 media_organizer.py /path/to/folder --output-dir /path/organized --move
 
+# Recursive: tüm alt klasörlerden topla, tek havuza düz çıkar
+python3 media_organizer.py /path/to/folder --recursive flat --output-dir /path/flat
+
+# Recursive: alt klasör yapısını koru, her klasör kendi numbered sequence'ını alır
+python3 media_organizer.py /path/to/folder --recursive tree --output-dir /path/tree
+
 # Combine options
 python3 media_organizer.py /path/to/folder --prefix "Summer2024" --include-extension --dry-run
 ```
@@ -148,11 +155,27 @@ Optional:
                         Sources are removed, output dir is populated.
                         Useless without --output-dir (errors out).
 
+  --recursive {flat,tree}
+                        Process subdirectories.
+                          flat → all files into ONE sequence; output is flat.
+                                 (requires --output-dir; cross-folder
+                                  relocation in source tree is destructive)
+                          tree → recurse, but rename within each subdir
+                                 separately. Source tree structure preserved
+                                 (mirrored to --output-dir if given).
+                                 Default prefix per-subdir = subdir name.
+                        Default: off (only top-level dir is scanned).
+
   --undo <report>       Reverse a previous run using its rename_report.json.
                         Behavior auto-determined from the recorded mode:
                           in-place → revert names (os.rename)
                           copy     → delete copies (sources untouched)
                           move     → move files back to source
+
+  --cleanup-empty-dirs  With --undo (copy/move only): remove subdirectories
+                        that became empty after undo. Useful for cleaning up
+                        mirror trees created by `--recursive tree`. The
+                        report's parent directory is always preserved.
 
   --dry-run             Preview mode - shows what would happen
                         without actually modifying any file
@@ -163,10 +186,13 @@ Optional:
 
 | Flags | Behavior | Sources after run |
 |---|---|---|
-| _(none)_ | In-place rename (`os.rename`) | Same files, new names |
-| `--output-dir <path>` | Copy with new names (`shutil.copy2`) | Untouched — full backup |
-| `--output-dir <path> --move` | Move with new names (`shutil.move`) | Empty — files relocated |
+| _(none)_ | In-place rename (`os.rename`), top-level only | Same files, new names |
+| `--output-dir <path>` | Copy with new names (`shutil.copy2`), top-level only | Untouched — full backup |
+| `--output-dir <path> --move` | Move with new names (`shutil.move`), top-level only | Empty — files relocated |
+| `--recursive flat --output-dir <path>` | Whole tree → one sequence, flat output | Untouched (copy) or empty (move) |
+| `--recursive tree` (+ optional `--output-dir`) | Recurse; each subdir keeps its own sequence; structure preserved | Renamed in place or mirrored |
 | `--undo <report>` | Auto-reverse from JSON report | Restored to pre-run state |
+| `--undo <report> --cleanup-empty-dirs` | Reverse + remove mirror dirs left empty | Pre-run state + clean output dir |
 
 ### Undo
 
@@ -260,8 +286,8 @@ python3 media_organizer.py "/mnt/external/PhotoShoot" --prefix "ClientName"
 ## How It Works
 
 1. **Scan Directory**
-   - Finds all media files (non-recursive)
-   - Groups by file extension
+   - Finds all media files (non-recursive by default; `--recursive flat|tree` opt-in)
+   - Groups by file extension (per-directory in tree mode)
 
 2. **Sort by Best-Available Timestamp**
    - Each file type is sorted independently
@@ -335,14 +361,14 @@ A `rename_report.json` file is written to the target directory after every run �
 ✅ **Dry-run mode**: Test before executing
 ✅ **Conflict detection**: Warns about existing files
 ✅ **Detailed reporting**: JSON log of all changes
-✅ **Non-recursive**: Only processes specified directory
+✅ **Non-recursive by default**: Only top-level processed unless `--recursive flat|tree`
 ✅ **Preserves extensions**: Original formats maintained
 ✅ **Timestamp-based**: Chronological organization
 
 ## Important Notes
 
 - **Default is in-place**: Without `--output-dir`, source files are renamed where they sit. Use `--output-dir` for a non-destructive copy if you want to preserve originals.
-- **Single directory**: Does not process subdirectories
+- **Single directory by default**: Subdirectories are ignored unless `--recursive flat|tree` is set.
 - **File extensions preserved**: `.jpg` stays `.jpg`, `.mp4` stays `.mp4`
 - **Sort time**: EXIF `DateTimeOriginal` for images (when Pillow installed), otherwise filesystem `mtime`. Console + JSON report show which source was used per file.
 - **No duplicates**: Each file type gets unique sequential numbers
@@ -351,7 +377,10 @@ A `rename_report.json` file is written to the target directory after every run �
 
 ## Limitations
 
-- Only processes files in the specified directory (not subdirectories)
+- Default scope is the specified directory only; subdirectories require `--recursive flat|tree` opt-in.
+- `--recursive flat` requires `--output-dir` (cross-folder relocation in source tree is intentionally blocked).
+- Symlinks are NOT followed during recursive scans (`os.walk(followlinks=False)` to avoid loops).
+- Hidden directories (names starting with `.`) are skipped during recursion.
 - Requires write permissions in target directory
 - Without Pillow installed, image sorting falls back to `mtime` (loses EXIF precision for copied/moved files)
 - Video and audio files always use `mtime` (no EXIF equivalent is read)
@@ -384,9 +413,10 @@ media-organizer/
 
 ## Future Features (Planned)
 
-- Subdirectory support with grouping options (organize files into year/month folders, by media type, etc.)
-- Multiple sorting methods (size, name, modified date)
-- Batch processing of multiple directories
+_(şu an aktif bir roadmap maddesi yok — `--recursive flat|tree` v0.5.0'da geldi.
+Date-based grouping (year/month) ve multi-sort gibi fikirler dataset-prep
+pipeline'ında downstream adımlar tarafından zaten yapıldığı için scope dışı
+bırakıldı.)_
 
 ## License
 
@@ -397,6 +427,22 @@ MIT License - Feel free to use and modify
 This is a simple utility tool. Feel free to fork and enhance!
 
 ## Version
+
+**v0.5.0** - Recursive scan support (`--recursive flat|tree`)
+- New `--recursive {flat,tree}` flag enabling subdirectory traversal:
+  - **flat:** all files across the tree pooled into one chronological sequence,
+    output written flat. Requires `--output-dir` (cross-folder relocation in
+    source tree is intentionally blocked).
+  - **tree:** each subdirectory keeps its own independent sequence; source
+    structure preserved (mirrored to `--output-dir` if given). Default prefix
+    per subdir = the subdir's own name (`--prefix X` overrides for all).
+- New `--cleanup-empty-dirs` flag for `--undo`: in copy/move modes, removes
+  subdirectories that became empty after undo (handy for `--recursive tree`
+  mirror trees). Bottom-up rmdir; the report's parent directory is always
+  preserved.
+- `os.walk(followlinks=False)` to prevent symlink loops; hidden dirs (`.git`,
+  `.venv`, etc.) skipped during recursion.
+- All v0.4.0 behavior preserved when `--recursive` is not used.
 
 **v0.4.0** - Reverted to `media-organizer` + module renamed to `media_organizer.py`
 - v0.2.0'da `media-renamer`'a geçilmişti; ama o noktadan sonra eklenen
