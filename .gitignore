@@ -36,3 +36,4 @@ rename_report*.json
 # OS
 .DS_Store
 Thumbs.db
+uv.lock
