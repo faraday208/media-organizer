@@ -64,10 +64,11 @@ This mode includes the extension in the filename, making it impossible to have n
 ✅ **Sequential Numbering by Type**: Each file format gets its own number sequence
 ✅ **EXIF-Aware Sorting**: Images sorted by EXIF `DateTimeOriginal` when available; falls back to `mtime` (which survives `cp -p` and `rsync`, unlike `ctime`)
 ✅ **Multi-Format Support**: Images, videos, and audio files
+✅ **Three Operation Modes**: in-place rename, copy to output dir (sources preserved), or move to output dir
 ✅ **Dry-Run Mode**: Preview changes before applying
 ✅ **Custom Prefix**: Use any prefix you want
 ✅ **Extension in Filename**: Optional mode to include extension in filename
-✅ **JSON Report**: Detailed log of all renames
+✅ **JSON Report**: Detailed log of all renames (written even in dry-run)
 ✅ **Conflict Detection**: Warns about potential naming conflicts
 ✅ **Safe Operation**: Non-recursive (only processes target directory)
 
@@ -101,7 +102,7 @@ No required dependencies — uses only the Python standard library.
 # Dry run (preview only - recommended first step)
 python3 rename_files.py /path/to/folder --dry-run
 
-# Actual rename (uses folder name as prefix)
+# In-place rename (uses folder name as prefix)
 python3 rename_files.py /path/to/folder
 
 # Custom prefix
@@ -109,6 +110,12 @@ python3 rename_files.py /path/to/folder --prefix "MyPhotos"
 
 # Include extension in filename
 python3 rename_files.py /path/to/folder --include-extension
+
+# Copy to a separate output directory (sources untouched — safest)
+python3 rename_files.py /path/to/folder --output-dir /path/organized
+
+# Move to output directory (sources removed)
+python3 rename_files.py /path/to/folder --output-dir /path/organized --move
 
 # Combine options
 python3 rename_files.py /path/to/folder --prefix "Summer2024" --include-extension --dry-run
@@ -131,9 +138,28 @@ Optional:
                         Example: MyPhotos_jpg_1.jpg
                         Default: prefix_number.ext
 
-  --dry-run            Preview mode - shows what would happen
-                       without actually renaming files
+  --output-dir <path>   Write renamed files to this directory.
+                        Sources stay untouched (copy mode).
+                        Created automatically if missing.
+                        Default: write next to source (in-place rename).
+
+  --move                With --output-dir: MOVE files instead of copying.
+                        Sources are removed, output dir is populated.
+                        Useless without --output-dir (errors out).
+
+  --dry-run             Preview mode - shows what would happen
+                        without actually modifying any file
 ```
+
+### Operation Modes
+
+| Flags | Behavior | Sources after run |
+|---|---|---|
+| _(none)_ | In-place rename (`os.rename`) | Same files, new names |
+| `--output-dir <path>` | Copy with new names (`shutil.copy2`) | Untouched — full backup |
+| `--output-dir <path> --move` | Move with new names (`shutil.move`) | Empty — files relocated |
+
+**Tip:** For destructive `--output-dir` modes, run `--dry-run` first; the JSON plan tells you exactly which target paths will be created before any file moves.
 
 ## Examples
 
@@ -292,11 +318,13 @@ A `rename_report.json` file is written to the target directory after every run �
 
 ## Important Notes
 
-- **Non-destructive**: Original files are renamed, not deleted
+- **Default is in-place**: Without `--output-dir`, source files are renamed where they sit. Use `--output-dir` for a non-destructive copy if you want to preserve originals.
 - **Single directory**: Does not process subdirectories
 - **File extensions preserved**: `.jpg` stays `.jpg`, `.mp4` stays `.mp4`
 - **Sort time**: EXIF `DateTimeOriginal` for images (when Pillow installed), otherwise filesystem `mtime`. Console + JSON report show which source was used per file.
 - **No duplicates**: Each file type gets unique sequential numbers
+- **Output dir auto-created**: `--output-dir` creates the path if it doesn't exist (`mkdir -p` semantics)
+- **Same dir guard**: If `--output-dir` resolves to the same path as the input, the tool falls back to in-place rename and prints a note
 
 ## Limitations
 
@@ -348,6 +376,13 @@ MIT License - Feel free to use and modify
 This is a simple utility tool. Feel free to fork and enhance!
 
 ## Version
+
+**v1.2.0** - Output directory + copy/move modes
+- New `--output-dir` flag: write renamed files to a separate directory (copy mode); sources untouched.
+- New `--move` flag (requires `--output-dir`): move files instead of copying (sources removed).
+- Default behavior unchanged: without `--output-dir`, in-place rename as before.
+- `--output-dir` is auto-created with `mkdir -p` semantics; if it equals the input dir the tool falls back to in-place with a notice.
+- Minor: console output now prints "Operation: ..." line so the chosen mode is unambiguous.
 
 **v1.1.0** - EXIF-aware sorting
 - Reads EXIF `DateTimeOriginal` for image files when Pillow is installed

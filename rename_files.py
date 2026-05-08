@@ -15,6 +15,7 @@ time, not creation time, so any chmod/chown/move resets it.
 import os
 import sys
 import json
+import shutil
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
@@ -130,15 +131,20 @@ def scan_directory(directory):
     return files_by_ext
 
 
-def generate_rename_plan(files_by_ext, prefix, include_extension=False):
-    """Sort each file group by timestamp and assign sequential numbers."""
+def generate_rename_plan(files_by_ext, prefix, include_extension=False, output_dir=None):
+    """
+    Sort each file group by timestamp and assign sequential numbers.
+
+    If `output_dir` is given, new_path lives there (copy/move mode).
+    Otherwise new_path lives next to the source (in-place rename).
+    """
     rename_plan = []
 
     for ext, file_list in files_by_ext.items():
         sorted_files = sorted(file_list, key=lambda x: x[1])
 
         for idx, (old_path, timestamp, source) in enumerate(sorted_files, 1):
-            directory = os.path.dirname(old_path)
+            target_dir = output_dir if output_dir else os.path.dirname(old_path)
 
             if include_extension:
                 ext_name = ext.lstrip('.')
@@ -146,7 +152,7 @@ def generate_rename_plan(files_by_ext, prefix, include_extension=False):
             else:
                 new_filename = f"{prefix}_{idx}{ext}"
 
-            new_path = os.path.join(directory, new_filename)
+            new_path = os.path.join(target_dir, new_filename)
 
             rename_plan.append({
                 'old_path': old_path,
@@ -182,10 +188,23 @@ def check_conflicts(rename_plan):
     return conflicts
 
 
-def execute_rename(rename_plan, dry_run=True):
-    """Apply (or simulate) the rename plan."""
+def execute_rename(rename_plan, dry_run=True, mode='rename'):
+    """
+    Apply (or simulate) the rename plan.
+
+    mode:
+      'rename' = in-place rename in source dir (os.rename)
+      'copy'   = copy to output dir, sources untouched (shutil.copy2)
+      'move'   = move to output dir, sources removed (shutil.move)
+    """
+    op_label = {
+        'rename': 'RENAMING FILES',
+        'copy':   'COPYING FILES',
+        'move':   'MOVING FILES',
+    }[mode]
+
     print("=" * 80)
-    print("DRY RUN MODE - No files will be renamed" if dry_run else "RENAMING FILES")
+    print("DRY RUN MODE - No files will be modified" if dry_run else op_label)
     print("=" * 80)
     print()
 
@@ -209,7 +228,12 @@ def execute_rename(rename_plan, dry_run=True):
                 success_count += 1
             else:
                 try:
-                    os.rename(item['old_path'], item['new_path'])
+                    if mode == 'copy':
+                        shutil.copy2(item['old_path'], item['new_path'])
+                    elif mode == 'move':
+                        shutil.move(item['old_path'], item['new_path'])
+                    else:  # 'rename' (in-place)
+                        os.rename(item['old_path'], item['new_path'])
                     print(f"  ✓ {old_name} → {new_name}")
                     success_count += 1
                 except Exception as e:
@@ -253,28 +277,40 @@ def main():
         print("\nOptions:")
         print("  --prefix <name>     : Prefix for renamed files (default: directory name)")
         print("  --include-extension : Include extension in filename (e.g., prefix_jpg_1.jpg)")
-        print("  --dry-run           : Simulate rename without actually changing files")
+        print("  --output-dir <path> : Write to this directory; sources stay untouched (copy mode)")
+        print("  --move              : With --output-dir: move instead of copy (sources removed)")
+        print("  --dry-run           : Simulate without modifying any file")
         print("\nExamples:")
         print('  python3 rename_files.py "/path/to/photos" --dry-run')
         print('  python3 rename_files.py "/path/to/photos" --prefix "Vacation2024"')
-        print('  python3 rename_files.py "/path/to/photos" --include-extension')
+        print('  python3 rename_files.py "/path/to/photos" --output-dir "/path/organized"')
+        print('  python3 rename_files.py "/path/to/photos" --output-dir "/path/organized" --move')
         sys.exit(1)
 
     target_dir = sys.argv[1]
     prefix = None
     dry_run = False
     include_extension = False
+    output_dir = None
+    move = False
 
     i = 2
     while i < len(sys.argv):
-        if sys.argv[i] == '--prefix' and i + 1 < len(sys.argv):
+        arg = sys.argv[i]
+        if arg == '--prefix' and i + 1 < len(sys.argv):
             prefix = sys.argv[i + 1]
             i += 2
-        elif sys.argv[i] == '--dry-run':
+        elif arg == '--output-dir' and i + 1 < len(sys.argv):
+            output_dir = sys.argv[i + 1]
+            i += 2
+        elif arg == '--dry-run':
             dry_run = True
             i += 1
-        elif sys.argv[i] == '--include-extension':
+        elif arg == '--include-extension':
             include_extension = True
+            i += 1
+        elif arg == '--move':
+            move = True
             i += 1
         else:
             i += 1
@@ -290,6 +326,29 @@ def main():
         print(f"Error: Not a directory: {target_dir}")
         sys.exit(1)
 
+    if move and not output_dir:
+        print("Error: --move requires --output-dir")
+        sys.exit(1)
+
+    # output_dir verildiyse: oluştur, abspath kıyasla, source ile aynıysa in-place'e indirge
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        if os.path.abspath(output_dir) == os.path.abspath(target_dir):
+            print("Note: --output-dir matches input directory; falling back to in-place rename.")
+            output_dir = None
+            move = False
+
+    if output_dir is None:
+        mode = 'rename'
+    else:
+        mode = 'move' if move else 'copy'
+
+    mode_label = {
+        'rename': 'IN-PLACE RENAME',
+        'copy':   f'COPY → {output_dir}',
+        'move':   f'MOVE → {output_dir}',
+    }[mode]
+
     print()
     print("=" * 80)
     print("MEDIA FILE RENAMER")
@@ -297,7 +356,8 @@ def main():
     print(f"Directory: {target_dir}")
     print(f"Prefix: {prefix}")
     print(f"Include extension: {'Yes' if include_extension else 'No'}")
-    print(f"Mode: {'DRY RUN' if dry_run else 'RENAME'}")
+    print(f"Operation: {mode_label}")
+    print(f"Mode: {'DRY RUN' if dry_run else 'EXECUTE'}")
     print()
 
     files_by_ext = scan_directory(target_dir)
@@ -306,7 +366,7 @@ def main():
         print("No media files found!")
         sys.exit(0)
 
-    rename_plan = generate_rename_plan(files_by_ext, prefix, include_extension)
+    rename_plan = generate_rename_plan(files_by_ext, prefix, include_extension, output_dir=output_dir)
 
     conflicts = check_conflicts(rename_plan)
     if conflicts:
@@ -319,9 +379,11 @@ def main():
             print("Aborted.")
             sys.exit(1)
 
-    execute_rename(rename_plan, dry_run=dry_run)
+    execute_rename(rename_plan, dry_run=dry_run, mode=mode)
 
-    report_file = os.path.join(target_dir, "rename_report.json")
+    # Rapor: output_dir varsa oraya, yoksa kaynağa.
+    report_dir = output_dir if output_dir else target_dir
+    report_file = os.path.join(report_dir, "rename_report.json")
     save_report(rename_plan, report_file)
 
     print("\nDone!")
