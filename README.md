@@ -325,6 +325,8 @@ A `rename_report.json` file is written to the target directory after every run �
 ```
 media-organizer/
 ├── rename_files.py    # Main CLI tool
+├── pyproject.toml     # Dependency tanımı (uv / pip)
+├── LICENSE
 ├── .gitignore
 └── README.md
 ```
