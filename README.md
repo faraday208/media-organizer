@@ -237,7 +237,7 @@ python3 rename_files.py "/mnt/external/PhotoShoot" --prefix "ClientName"
 
 ## Output Report
 
-After renaming, a `rename_report.json` file is created in the target directory:
+A `rename_report.json` file is written to the target directory after every run — including dry-run mode. This lets you inspect the planned mapping before committing to the rename, and keeps a permanent record afterwards. Example:
 
 ```json
 {
