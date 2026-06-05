@@ -297,7 +297,7 @@ def check_conflicts(rename_plan):
     return conflicts
 
 
-def execute_rename(rename_plan, dry_run=True, mode='rename'):
+def execute_rename(rename_plan, dry_run=True, mode='rename', progress_cb=None):
     """
     Apply (or simulate) the rename plan.
 
@@ -305,6 +305,10 @@ def execute_rename(rename_plan, dry_run=True, mode='rename'):
       'rename' = in-place rename in source dir (os.rename)
       'copy'   = copy to output dir, sources untouched (shutil.copy2)
       'move'   = move to output dir, sources removed (shutil.move)
+
+    progress_cb: opsiyonel Callable[[int, int, str], None] — (current, total, msg)
+                 olarak çağrılır. UI'ı taşmamak için her TICK dosyada bir + son
+                 dosyada tetiklenir.
     """
     op_label = {
         'rename': 'RENAMING FILES',
@@ -323,6 +327,13 @@ def execute_rename(rename_plan, dry_run=True, mode='rename'):
     by_ext = defaultdict(list)
     for item in rename_plan:
         by_ext[item['extension']].append(item)
+
+    total = len(rename_plan)
+    current = 0
+    TICK = 25  # callback frequency; küçük dataset'te çoğu güncellemeyi yine de görürüz
+
+    if progress_cb:
+        progress_cb(0, total, "Başlatılıyor…")
 
     for ext, items in sorted(by_ext.items()):
         print(f"\n{ext.upper()} files ({len(items)}):")
@@ -352,6 +363,10 @@ def execute_rename(rename_plan, dry_run=True, mode='rename'):
                 except Exception as e:
                     print(f"  ✗ {old_name} → {new_name} (Error: {e})")
                     error_count += 1
+
+            current += 1
+            if progress_cb and (current % TICK == 0 or current == total):
+                progress_cb(current, total, f"{current}/{total} dosya")
 
     print()
     print("=" * 80)
