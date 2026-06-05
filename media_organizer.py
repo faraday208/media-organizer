@@ -381,6 +381,14 @@ def execute_rename(rename_plan, dry_run=True, mode='rename', progress_cb=None):
         print("\nThis was a DRY RUN. No files were actually renamed.")
         print("Run without --dry-run to perform the actual rename.")
 
+    # Sonuç sayaçları — çağıran (UI/CLI) başarı/error gösterebilsin diye döndürülür.
+    # Geriye dönük uyumlu: dönüşü yok sayan mevcut çağrılar etkilenmez.
+    return {
+        "success": success_count,
+        "error": error_count,
+        "total": len(rename_plan),
+    }
+
 
 REPORT_TOOL_NAME = 'media-organizer'
 
