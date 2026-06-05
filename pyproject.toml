@@ -1,6 +1,6 @@
 [project]
 name = "media-organizer"
-version = "0.5.1"
+version = "0.6.0"
 description = "Organize media files for dataset prep: batch rename + relocate (copy/move to output dir) + undo, with sequential numbering by type and creation time."
 requires-python = ">=3.11"
 readme = "README.md"
